@@ -1,0 +1,1 @@
+valgrind --leak-check=full ./my_storage_use
