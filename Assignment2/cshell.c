@@ -5,15 +5,38 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 
 #define MAX_ENV_VAR_COUNT 100
 #define MAX_COMMAND_LENGTH 100
 #define MAX_COMMAND_TOKENS_COUNT 10
+#define MAX_COMMAND_ARGS_COUNT 100
 
 typedef struct {
     char *name;
     char *value;
 } EnvVar;
+
+typedef struct {
+    char *name;
+    struct tm time;
+    int returnVal;
+} Command;
+
+int setCommandArgs(char *tokens[], Command *commandArgs, int commandArgCount, int returnVal) {
+    time_t rawtime;
+    char *commandName = tokens[0];
+
+    time(&rawtime);
+
+    commandArgs[commandArgCount].name = malloc(strlen(commandName) + 1);
+    strcpy(commandArgs[commandArgCount].name, commandName);
+    commandArgs[commandArgCount].time = *localtime(&rawtime);
+    commandArgs[commandArgCount].returnVal = returnVal;
+    commandArgCount++;
+
+    return commandArgCount;
+}
 
 int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     if (command[0] != '$') {
@@ -24,8 +47,6 @@ int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     char *envVarValue;
     char *envVarDelim;
 
-    printf("command: %s\n", command);
-
     envVarDelim = strchr(command, '=');
     envVarName = strtok(command, "=");
     envVarValue = strtok(NULL, "=");
@@ -34,22 +55,13 @@ int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
             (isspace(*(envVarDelim - 1)) || isspace(*(envVarDelim + 1))) ||
             (envVarName == NULL || envVarValue == NULL)
         ) {
-            printf("Variable value expected1\n");
+            printf("Variable value expected test1\n");
             return envVarCount;
         }
     } else {
-        printf("Variable value expected2\n");
+        printf("Variable value expected test2\n");
         return envVarCount;
     }
-
-
-
-
-    // printf("envVarName: %s\n", envVarName);
-    // printf("envVarValue: %s\n", envVarValue);
-
-
-
 
     // check if environment variable already exists
     for (int i = 0; i < envVarCount; i++) {
@@ -70,74 +82,131 @@ int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     return envVarCount;
 }
 
-void commandTokenize(char *command, char *tokens[]) {
+char **commandTokenize(char *command) {
     int i = 0;
+    char **tokens = malloc(MAX_COMMAND_TOKENS_COUNT * sizeof(char *));
+    char *token;
 
     // tokenize command
-    tokens[i] = strtok(command, " \t\n=");
-    while (tokens[i] != NULL && i < MAX_COMMAND_TOKENS_COUNT - 1) {
+    token = strtok(command, " \t\n=");
+    while (token != NULL && i < MAX_COMMAND_TOKENS_COUNT - 1) {
+        tokens[i] = malloc(strlen(token) + 1);
+        strcpy(tokens[i], token);
         i++;
-        tokens[i] = strtok(NULL, " \t\n=");
+        token = strtok(NULL, " \t\n=");
     }
     tokens[i] = NULL;
+
+    return tokens;
 }
 
-int commandExecute(char *tokens[]) {
-    int status = 0;
+int commandExecute(char *tokens[], EnvVar *envVars, int envVarCount, Command *commandArgs, int commandArgCount) {
+    int returnVal = 0;
 
-    // char *tokens[MAX_COMMAND_TOKENS_COUNT];
-    // int i = 0;
-
+    // exit
     if (strcmp(tokens[0], "exit") == 0) {
         printf("Bye!\n");
         exit(0);
-
-        printf("test");
         
         // free
-    } else {
+    }
+
+    // print
+    else if (strcmp(tokens[0], "print") == 0) {
+        // show error message if no arguments are given
+        if (tokens[1] == NULL) {
+            printf("Please enter a valid argument!\n");
+            returnVal = -1;
+        }
+        // print arguments
+        else {
+            for (int i = 1; tokens[i] != NULL; i++) {
+                if (tokens[i][0] == '$') {
+                    for (int j = 0; j < envVarCount; j++) {
+                        if (strcmp(tokens[i], envVars[j].name) == 0) {
+                            printf("%s", envVars[j].value);
+                            goto end;
+                        }
+                    }
+                    returnVal = -1;
+                } else {
+                    printf("%s ", tokens[i]);
+                }
+            }
+        }
+        
+    end:
+        printf("\n");
+        return returnVal;
+    }
+
+    // log
+    else if (strcmp(tokens[0], "log") == 0) {
+        for (int i = 0; i < commandArgCount; i++) {
+            printf("%s", asctime(&commandArgs[i].time));
+            printf(" %s ", commandArgs[i].name);
+            printf("%d\n", commandArgs[i].returnVal);
+        }
+        return returnVal;
+    }
+
+    // theme
+    else if (strcmp(tokens[0], "theme") == 0) {
+        if (strcmp(tokens[1], "red") == 0) {
+            printf("\033[0;31m");
+        } else if (strcmp(tokens[1], "green") == 0) {
+            printf("\033[0;32m");
+        } else if (strcmp(tokens[1], "blue") == 0) {
+            printf("\033[0;34m");
+        } else {
+            printf("unsupported theme\n");
+            returnVal = -1;
+        }
+        return returnVal;
+    }
+
+    // fork
+    else {
         pid_t child_pid = fork();
 
         if (child_pid < 0) {
             exit(1);
         } else if (child_pid == 0) {
             execvp(tokens[0], tokens);
-            // perror("execvp");
             exit(1);
         } else {
-            // wait(&status);
-            // return(status);
+            int status = 0;
             waitpid(child_pid, &status, 0);
         }
     }
     
-    return 0;
+    return returnVal;
 }
 
 int main(int argc, char *argv[]) {
     char command[MAX_COMMAND_LENGTH];
-    char *tokens[MAX_COMMAND_TOKENS_COUNT];
+    char **tokens;
+    // char *tokens[MAX_COMMAND_TOKENS_COUNT];
+    
     EnvVar envVars[MAX_ENV_VAR_COUNT];
     int envVarCount = 0;
+
+    Command commandArgs[MAX_COMMAND_ARGS_COUNT];
+    int commandArgCount = 0;
+    int returnVal;
 
     while(1) {
         printf("cshell$ ");
         
         fgets(command, MAX_COMMAND_LENGTH, stdin);
         command[strcspn(command, "\n")] = 0; // remove trailing newline
-        // printf("command: %s\n", command);
-
-        
         
         envVarCount = setEnvVar(command, envVars, envVarCount);
-        // printf("envVarCount: %d\n", envVarCount);
-        // for(int i = 0; i < envVarCount; i++) {
-        //     printf("envVarName: %s\n", envVars[i].name);
-        //     printf("envVarValue: %s\n", envVars[i].value);
-        // }
         
-        commandTokenize(command, tokens); // tokenize command
-        commandExecute(tokens);
+        tokens = commandTokenize(command);
+        returnVal = commandExecute(tokens, envVars, envVarCount, commandArgs, commandArgCount);
+
+        commandArgCount = setCommandArgs(tokens, commandArgs, commandArgCount, returnVal);
     }
 
     return 0;
