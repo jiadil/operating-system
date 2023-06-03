@@ -23,10 +23,16 @@ typedef struct {
     int returnVal;
 } Command;
 
-int setCommandLog(char *tokens[], Command *commandLog, int commandLogCount, int returnVal) {
+int setCommandLog(char *tokens[], char *command, Command *commandLog, int commandLogCount, int returnVal) {
     time_t rawtime;
-    char *commandName = tokens[0];
+    char *commandName;
 
+    if ((returnVal == -1) || (tokens[0][0] == '$')) {
+        commandName = command;
+    } else {
+        commandName = tokens[0];
+    }
+    
     time(&rawtime);
 
     commandLog[commandLogCount].name = malloc(strlen(commandName) + 1);
@@ -38,30 +44,51 @@ int setCommandLog(char *tokens[], Command *commandLog, int commandLogCount, int 
     return commandLogCount;
 }
 
-int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
+//boolean function to check if the command is an environment variable
+int checkEnvVar(char *command) {
     if (command[0] != '$') {
-        return envVarCount;
+        return 0;
     }
 
+    char *commandCopy = strdup(command);
     char *envVarName;
     char *envVarValue;
     char *envVarDelim;
 
-    envVarDelim = strchr(command, '=');
-    envVarName = strtok(command, "=");
+    envVarDelim = strchr(commandCopy, '=');
+    envVarName = strtok(commandCopy, "=");
     envVarValue = strtok(NULL, "=");
     if (envVarDelim) {
         if (
             (isspace(*(envVarDelim - 1)) || isspace(*(envVarDelim + 1))) ||
             (envVarName == NULL || envVarValue == NULL)
         ) {
-            printf("Variable value expected test1\n");
-            return envVarCount;
+            return 0;
         }
     } else {
-        printf("Variable value expected test2\n");
+        return 0;
+    }
+
+    // free(commandCopy);
+    // free(envVarName);
+    // free(envVarValue);
+    // free(envVarDelim);
+
+    return 1;
+}
+
+int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
+    
+    if (!checkEnvVar(command)) {
         return envVarCount;
     }
+
+    char *commandCopy = strdup(command);
+    char *envVarName;
+    char *envVarValue;
+
+    envVarName = strtok(commandCopy, "=");
+    envVarValue = strtok(NULL, "=");
 
     // check if environment variable already exists
     for (int i = 0; i < envVarCount; i++) {
@@ -79,16 +106,22 @@ int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     strcpy(envVars[envVarCount].value, envVarValue);
     envVarCount++;
 
+    free(commandCopy);
+    // free(envVarName);
+    // free(envVarValue);
+    // free(envVarDelim);
+
     return envVarCount;
 }
 
 char **commandTokenize(char *command) {
     int i = 0;
+    char *commandCopy = strdup(command);
     char **tokens = malloc(MAX_COMMAND_TOKENS_COUNT * sizeof(char *));
     char *token;
 
     // tokenize command
-    token = strtok(command, " \t\n=");
+    token = strtok(commandCopy, " \t\n=");
     while (token != NULL && i < MAX_COMMAND_TOKENS_COUNT - 1) {
         tokens[i] = malloc(strlen(token) + 1);
         strcpy(tokens[i], token);
@@ -97,10 +130,11 @@ char **commandTokenize(char *command) {
     }
     tokens[i] = NULL;
 
+    free(commandCopy);
     return tokens;
 }
 
-int commandExecute(char *tokens[], EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
+int commandExecute(char *tokens[], char *command, EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
     int returnVal = 0;
 
     // exit
@@ -165,14 +199,25 @@ int commandExecute(char *tokens[], EnvVar *envVars, int envVarCount, Command *co
         return returnVal;
     }
 
+    else if (tokens[0][0] == '$') {
+        if (!checkEnvVar(command)) {
+            printf("Variable value expected\n");
+            returnVal = -1;
+        }
+    }
+
     // fork
     else {
+        printf("Missing keyword or command, or permission problem\n");
+        returnVal = -1;
+
         pid_t child_pid = fork();
 
         if (child_pid < 0) {
             exit(1);
         } else if (child_pid == 0) {
             execvp(tokens[0], tokens);
+            
             exit(1);
         } else {
             int status = 0;
@@ -200,13 +245,13 @@ int main(int argc, char *argv[]) {
         
         fgets(command, MAX_COMMAND_LENGTH, stdin);
         command[strcspn(command, "\n")] = 0; // remove trailing newline
-        
-        envVarCount = setEnvVar(command, envVars, envVarCount);
-        
-        tokens = commandTokenize(command);
-        returnVal = commandExecute(tokens, envVars, envVarCount, commandLog, commandLogCount);
 
-        commandLogCount = setCommandLog(tokens, commandLog, commandLogCount, returnVal);
+        envVarCount = setEnvVar(command, envVars, envVarCount);
+
+        tokens = commandTokenize(command);
+        returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
+
+        commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
     }
 
     return 0;
