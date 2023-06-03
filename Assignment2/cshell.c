@@ -10,7 +10,7 @@
 #define MAX_ENV_VAR_COUNT 100
 #define MAX_COMMAND_LENGTH 100
 #define MAX_COMMAND_TOKENS_COUNT 10
-#define MAX_COMMAND_ARGS_COUNT 100
+#define MAX_COMMAND_LOG_COUNT 100
 
 typedef struct {
     char *name;
@@ -23,19 +23,19 @@ typedef struct {
     int returnVal;
 } Command;
 
-int setCommandArgs(char *tokens[], Command *commandArgs, int commandArgCount, int returnVal) {
+int setCommandLog(char *tokens[], Command *commandLog, int commandLogCount, int returnVal) {
     time_t rawtime;
     char *commandName = tokens[0];
 
     time(&rawtime);
 
-    commandArgs[commandArgCount].name = malloc(strlen(commandName) + 1);
-    strcpy(commandArgs[commandArgCount].name, commandName);
-    commandArgs[commandArgCount].time = *localtime(&rawtime);
-    commandArgs[commandArgCount].returnVal = returnVal;
-    commandArgCount++;
+    commandLog[commandLogCount].name = malloc(strlen(commandName) + 1);
+    strcpy(commandLog[commandLogCount].name, commandName);
+    commandLog[commandLogCount].time = *localtime(&rawtime);
+    commandLog[commandLogCount].returnVal = returnVal;
+    commandLogCount++;
 
-    return commandArgCount;
+    return commandLogCount;
 }
 
 int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
@@ -100,7 +100,7 @@ char **commandTokenize(char *command) {
     return tokens;
 }
 
-int commandExecute(char *tokens[], EnvVar *envVars, int envVarCount, Command *commandArgs, int commandArgCount) {
+int commandExecute(char *tokens[], EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
     int returnVal = 0;
 
     // exit
@@ -142,10 +142,10 @@ int commandExecute(char *tokens[], EnvVar *envVars, int envVarCount, Command *co
 
     // log
     else if (strcmp(tokens[0], "log") == 0) {
-        for (int i = 0; i < commandArgCount; i++) {
-            printf("%s", asctime(&commandArgs[i].time));
-            printf(" %s ", commandArgs[i].name);
-            printf("%d\n", commandArgs[i].returnVal);
+        for (int i = 0; i < commandLogCount; i++) {
+            printf("%s", asctime(&commandLog[i].time));
+            printf(" %s ", commandLog[i].name);
+            printf("%d\n", commandLog[i].returnVal);
         }
         return returnVal;
     }
@@ -191,8 +191,8 @@ int main(int argc, char *argv[]) {
     EnvVar envVars[MAX_ENV_VAR_COUNT];
     int envVarCount = 0;
 
-    Command commandArgs[MAX_COMMAND_ARGS_COUNT];
-    int commandArgCount = 0;
+    Command commandLog[MAX_COMMAND_LOG_COUNT];
+    int commandLogCount = 0;
     int returnVal;
 
     while(1) {
@@ -204,9 +204,9 @@ int main(int argc, char *argv[]) {
         envVarCount = setEnvVar(command, envVars, envVarCount);
         
         tokens = commandTokenize(command);
-        returnVal = commandExecute(tokens, envVars, envVarCount, commandArgs, commandArgCount);
+        returnVal = commandExecute(tokens, envVars, envVarCount, commandLog, commandLogCount);
 
-        commandArgCount = setCommandArgs(tokens, commandArgs, commandArgCount, returnVal);
+        commandLogCount = setCommandLog(tokens, commandLog, commandLogCount, returnVal);
     }
 
     return 0;
