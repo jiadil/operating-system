@@ -23,7 +23,7 @@ typedef struct {
     int returnVal;
 } Command;
 
-int setCommandLog(char *tokens[], char *command, Command *commandLog, int commandLogCount, int returnVal) {
+int setCommandLog(char **tokens, char *command, Command *commandLog, int commandLogCount, int returnVal) {
     time_t rawtime;
     char *commandName;
 
@@ -69,11 +69,7 @@ int checkEnvVar(char *command) {
         return 0;
     }
 
-    // free(commandCopy);
-    // free(envVarName);
-    // free(envVarValue);
-    // free(envVarDelim);
-
+    free(commandCopy);
     return 1;
 }
 
@@ -107,10 +103,6 @@ int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     envVarCount++;
 
     free(commandCopy);
-    // free(envVarName);
-    // free(envVarValue);
-    // free(envVarDelim);
-
     return envVarCount;
 }
 
@@ -130,19 +122,26 @@ char **commandTokenize(char *command) {
     }
     tokens[i] = NULL;
 
+    // reallocate tokens
+    tokens = realloc(tokens, (i + 1) * sizeof(char *));
+
     free(commandCopy);
     return tokens;
 }
 
-int commandExecute(char *tokens[], char *command, EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
+int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
     int returnVal = 0;
 
     // exit
     if (strcmp(tokens[0], "exit") == 0) {
         printf("Bye!\n");
-        exit(0);
         
-        // free
+        for (int i = 0; tokens[i] != NULL; i++) {
+            free(tokens[i]);
+        }
+        free(tokens);
+
+        exit(0);
     }
 
     // print
@@ -208,22 +207,25 @@ int commandExecute(char *tokens[], char *command, EnvVar *envVars, int envVarCou
 
     // fork
     else {
-        printf("Missing keyword or command, or permission problem\n");
-        returnVal = -1;
-
+        if (!access(tokens[0], X_OK)) {
+            printf("Missing keyword or command, or permission problem\n");
+            returnVal = -1;
+        }
+        
         pid_t child_pid = fork();
 
         if (child_pid < 0) {
             exit(1);
         } else if (child_pid == 0) {
             execvp(tokens[0], tokens);
-            
             exit(1);
         } else {
             int status = 0;
             waitpid(child_pid, &status, 0);
         }
     }
+
+    
     
     return returnVal;
 }
@@ -231,7 +233,6 @@ int commandExecute(char *tokens[], char *command, EnvVar *envVars, int envVarCou
 int main(int argc, char *argv[]) {
     char command[MAX_COMMAND_LENGTH];
     char **tokens;
-    // char *tokens[MAX_COMMAND_TOKENS_COUNT];
     
     EnvVar envVars[MAX_ENV_VAR_COUNT];
     int envVarCount = 0;
@@ -240,11 +241,45 @@ int main(int argc, char *argv[]) {
     int commandLogCount = 0;
     int returnVal;
 
-    while(1) {
-        printf("cshell$ ");
+    // script mode
+    if (argv[1]) {
+        FILE *script = fopen(argv[1], "r");
+        if (script == NULL) {
+            printf("Unable to read script file: %s\n", argv[1]);
+            exit(1);
+        }
+        while (fgets(command, MAX_COMMAND_LENGTH, script) != NULL) {
+            command[strcspn(command, "\n")] = 0; // remove trailing newline
+
+            envVarCount = setEnvVar(command, envVars, envVarCount);
+
+            tokens = commandTokenize(command);
+            returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
+
+            commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
+        }
+
         
-        fgets(command, MAX_COMMAND_LENGTH, stdin);
-        command[strcspn(command, "\n")] = 0; // remove trailing newline
+
+        // free memory
+        for (int i = 0; i < envVarCount; i++) {
+            free(envVars[i].name);
+            free(envVars[i].value);
+        }
+        for (int i = 0; i < commandLogCount; i++) {
+            free(commandLog[i].name);
+        }
+        for (int i = 0; tokens[i] != NULL; i++) {
+            free(tokens[i]);
+        }
+        free(tokens);
+        fclose(script);
+        
+
+    
+
+        // exit cleanly after executing in script mode
+        strcpy(command, "exit");
 
         envVarCount = setEnvVar(command, envVars, envVarCount);
 
@@ -254,5 +289,36 @@ int main(int argc, char *argv[]) {
         commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
     }
 
+    // interactive mode
+    else {
+        while(1) {
+            printf("cshell$ ");
+            
+            fgets(command, MAX_COMMAND_LENGTH, stdin);
+            command[strcspn(command, "\n")] = 0; // remove trailing newline
+
+            envVarCount = setEnvVar(command, envVars, envVarCount);
+
+            tokens = commandTokenize(command);
+            returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
+
+            commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
+        }
+    }
+
+    // free memory
+    for (int i = 0; i < envVarCount; i++) {
+        free(envVars[i].name);
+        free(envVars[i].value);
+    }
+    for (int i = 0; i < commandLogCount; i++) {
+        free(commandLog[i].name);
+    }
+    for (int i = 0; tokens[i] != NULL; i++) {
+        free(tokens[i]);
+    }
+    free(tokens);
+
+    
     return 0;
 }
