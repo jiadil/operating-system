@@ -24,36 +24,43 @@ typedef struct {
     int returnVal;
 } Command;
 
-int setCommandLog(char **tokens, char *command, Command *commandLog, int commandLogCount, int returnVal) {
-    time_t rawtime;
-    char *commandName;
+// function to tokenize a command
+char **commandTokenize(char *command) {
+    int i = 0;
+    char *commandTemp = strdup(command);
+    char **tokens = malloc(MAX_COMMAND_TOKENS_COUNT * sizeof(char *));
+    char *token;
 
-    if ((returnVal == -1) || (tokens[0][0] == '$')) {
-        commandName = command;
-    } else {
-        commandName = tokens[0];
+    // tokenize command
+    token = strtok(commandTemp, " \t\n=");
+    while (token != NULL && i < MAX_COMMAND_TOKENS_COUNT - 1) {
+        tokens[i] = malloc((strlen(token) + 1) * sizeof(char));
+        strcpy(tokens[i], token);
+        i++;
+        token = strtok(NULL, " \t\n=");
     }
-    
-    time(&rawtime);
+    tokens[i] = NULL;
 
-    commandLog[commandLogCount].name = malloc(strlen(commandName) + 1);
-    strcpy(commandLog[commandLogCount].name, commandName);
-    commandLog[commandLogCount].time = *localtime(&rawtime);
-    commandLog[commandLogCount].returnVal = returnVal;
-    commandLogCount++;
+    // reallocate tokens
+    tokens = realloc(tokens, (i + 1) * sizeof(char *));
 
-    return commandLogCount;
+    // free memory
+    free(commandTemp);
+
+    return tokens;
 }
 
-//boolean function to check if the command is an environment variable
+// function to check if a command is a valid environment variable
 int isValidEnvVar(char *command) {
     int commandLength = strlen(command);
     int isEnvVarDelim = 0;
 
+    // check if a command starts with '$' and has at least 2 characters
     if ((command[0] != '$') || (commandLength < 2)) {
         return 0;
     }
 
+    // check if a command has only one '=' and no space (or spaces at the end)
     for (int i = 1; i < commandLength; i++) {
         if (command[i] == '=') { // check if there is only one '='
             if (isEnvVarDelim || (command[i-1] == '$')) {
@@ -76,17 +83,19 @@ int isValidEnvVar(char *command) {
     return 1;
 }
 
+// function to store environment variables
 int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     
+    // check if command is a valid environment variable
     if (!isValidEnvVar(command)) {
         return envVarCount;
     }
 
-    char *commandCopy = strdup(command);
+    char *commandTemp = strdup(command);
     char *envVarName;
     char *envVarValue;
 
-    envVarName = strtok(commandCopy, "=");
+    envVarName = strtok(commandTemp, "=");
     envVarValue = strtok(NULL, "=");
 
     // check if environment variable already exists
@@ -99,44 +108,48 @@ int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     }
 
     // add new environment variable
-    envVars[envVarCount].name = malloc(strlen(envVarName) + 1);
-    envVars[envVarCount].value = malloc(strlen(envVarValue) + 1);
+    envVars[envVarCount].name = malloc((strlen(envVarName) + 1) * sizeof(char));
+    envVars[envVarCount].value = malloc((strlen(envVarValue) + 1) * sizeof(char));
     strcpy(envVars[envVarCount].name, envVarName);
     strcpy(envVars[envVarCount].value, envVarValue);
     envVarCount++;
 
-    free(commandCopy);
+    // free memory
+    free(commandTemp);
+
     return envVarCount;
 }
 
-char **commandTokenize(char *command) {
-    int i = 0;
-    char *commandCopy = strdup(command);
-    char **tokens = malloc(MAX_COMMAND_TOKENS_COUNT * sizeof(char *));
-    char *token;
+// function to store command log
+int setCommandLog(char **tokens, char *command, Command *commandLog, int commandLogCount, int returnVal) {
+    char *commandName;
+    time_t rawtime;
+    time(&rawtime);
 
-    // tokenize command
-    token = strtok(commandCopy, " \t\n=");
-    while (token != NULL && i < MAX_COMMAND_TOKENS_COUNT - 1) {
-        tokens[i] = malloc((strlen(token) + 1) * sizeof(char));
-        strcpy(tokens[i], token);
-        i++;
-        token = strtok(NULL, " \t\n=");
+    // store full command if the command fails or is an environment variable
+    if ((returnVal == -1) || (tokens[0][0] == '$')) {
+        commandName = command;
+    } else {
+        commandName = tokens[0];
     }
-    tokens[i] = NULL;
 
-    // reallocate tokens
-    tokens = realloc(tokens, (i + 1) * sizeof(char *));
+    // store each command with its name, time, and return value
+    commandLog[commandLogCount].name = malloc((strlen(commandName) + 1) * sizeof(char));
+    strcpy(commandLog[commandLogCount].name, commandName);
+    commandLog[commandLogCount].time = *localtime(&rawtime);
+    commandLog[commandLogCount].returnVal = returnVal;
+    commandLogCount++;
 
-    free(commandCopy);
-    return tokens;
+    return commandLogCount;
 }
 
+// function to execute commands
 int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
     int returnVal = 0;
 
-    // exit
-    if (strcmp(tokens[0], "exit") == 0) {
+    // built-in command
+    if (strcmp(tokens[0], "exit") == 0) { // exit
+        // show error message if too many arguments are given
         if (tokens[1] != NULL) {
             printf("Error: Too many Arguments detected\n");
             returnVal = -1;
@@ -145,12 +158,17 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
 
         printf("Bye!\n");
         
-        for (int i = 0; i < envVarCount; i++) {
-            free(envVars[i].name);
-            free(envVars[i].value);
+        // free memory
+        if (envVars != NULL) {
+            for (int i = 0; i < envVarCount; i++) {
+                free(envVars[i].name);
+                free(envVars[i].value);
+            }
         }
-        for (int i = 0; i < commandLogCount; i++) {
-            free(commandLog[i].name);
+        if (commandLog != NULL) {
+            for (int i = 0; i < commandLogCount; i++) {
+                free(commandLog[i].name);
+            }
         }
         for (int i = 0; tokens[i] != NULL; i++) {
             free(tokens[i]);
@@ -158,54 +176,53 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
         free(tokens);
 
         exit(0);
-    }
-
-    // print
-    else if (strcmp(tokens[0], "print") == 0) {
+    } else if (strcmp(tokens[0], "print") == 0) { // print
         // create a string to store the command
         char printCommand[MAX_COMMAND_LENGTH] = "";
+        int isValidEnvVar = 0;
 
-        // show error message if no arguments are given
-        if (tokens[1] == NULL) {
+        if (tokens[1] == NULL) { // show error message if no arguments are given
             printf("Please enter a valid argument!");
             returnVal = -1;
-        }
-        // print arguments
-        else {
+        } else { // store the command to printCommand
             for (int i = 1; tokens[i] != NULL; i++) {
-                if (tokens[i][0] == '$') {
+                if (tokens[i][0] == '$') { // if the argument is an environment variable
+                    isValidEnvVar = 0;
+
+                    // if the environment variable exists, add to printCommand with space
                     for (int j = 0; j < envVarCount; j++) {
                         if (strcmp(tokens[i], envVars[j].name) == 0) {
                             // add to printCommand with space
                             strcat(printCommand, envVars[j].value);
                             strcat(printCommand, " ");
-                            goto end;
+                            isValidEnvVar = 1;
                         }
                     }
-                    // replace printCommand with error message
-                    printf("Error: No Environment Variable %s found.\n", tokens[i]);
-                    returnVal = -1;
-                    return returnVal;
-                } else {
+
+                    // if the environment variable does not exist, show error message
+                    if (!isValidEnvVar) {
+                        printf("Error: No Environment Variable %s found.\n", tokens[i]);
+                        returnVal = -1;
+                        return returnVal;
+                    }
+                } else { // if the argument is not an environment variable, add to printCommand with space
                     strcat(printCommand, tokens[i]);
                     strcat(printCommand, " ");
                 }
             }
         }
-        
-    end:
         printf("%s\n", printCommand);
-        return returnVal;
-    }
 
-    // log
-    else if (strcmp(tokens[0], "log") == 0) {
+        return returnVal;
+    } else if (strcmp(tokens[0], "log") == 0) { // log
+        // show error message if too many arguments are given
         if (tokens[1] != NULL) {
             printf("Error: Too many Arguments detected\n");
             returnVal = -1;
             return returnVal;
         }
 
+        // print the command log
         for (int i = 0; i < commandLogCount; i++) {
             printf("%s", asctime(&commandLog[i].time));
             printf(" %s ", commandLog[i].name);
@@ -213,10 +230,7 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
         }
 
         return returnVal;
-    }
-
-    // theme
-    else if (strcmp(tokens[0], "theme") == 0) {
+    } else if (strcmp(tokens[0], "theme") == 0) { // theme
         if (tokens[1]) {
             if (strcmp(tokens[1], "red") == 0) {
                 printf("\033[0;31m");
@@ -234,22 +248,20 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
         }
         
         return returnVal;
-    }
-
-    else if (tokens[0][0] == '$') {
+    } else if (tokens[0][0] == '$') { // environment variable
         if (!isValidEnvVar(command)) {
             printf("Variable value expected\n");
             returnVal = -1;
         }
     }
 
-
-    // fork
+    // non-built-in command
     else {
         pid_t child_pid = fork();
         
         if (child_pid >= 0) {
             if (child_pid == 0) {
+                // return error message if execvp fails (error commands))
                 if (execvp(tokens[0], tokens) == -1) {
                     printf("Missing keyword or command, or permission problem\n");
                     exit(1);
@@ -257,6 +269,7 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
             } else {
                 int status;
                 wait(&status);
+                // return value is -1 for error commands
                 if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
                     returnVal = -1;
                 }
@@ -297,7 +310,7 @@ int main(int argc, char *argv[]) {
             commandCountFromFile++;
         }
 
-        // run
+        // execute each command from file
         for (int i = 0; i < commandCountFromFile; i++) {
             envVarCount = setEnvVar(commandsFromFile[i], envVars, envVarCount);
 
@@ -313,17 +326,9 @@ int main(int argc, char *argv[]) {
             free(tokens);
         }
 
-        // free memory
-        for (int i = 0; i < envVarCount; i++) {
-            free(envVars[i].name);
-            free(envVars[i].value);
-        }
-        for (int i = 0; i < commandLogCount; i++) {
-            free(commandLog[i].name);
-        }
         fclose(script);
 
-        // exit cleanly after executing in script mode
+        // exit cleanly and clean memory after executing in script mode
         strcpy(command, "exit");
 
         envVarCount = setEnvVar(command, envVars, envVarCount);
@@ -332,7 +337,6 @@ int main(int argc, char *argv[]) {
         returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
 
         commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
-        // return 0;
     }
 
     // interactive mode
