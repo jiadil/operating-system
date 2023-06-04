@@ -3,4 +3,5 @@ print $VAR
 pwd
 whoami
 theme red
+wrong
 log

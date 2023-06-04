@@ -8,6 +8,7 @@
 #include <time.h>
 
 #define MAX_ENV_VAR_COUNT 100
+#define MAX_COMMAND_COUNT 100
 #define MAX_COMMAND_LENGTH 100
 #define MAX_COMMAND_TOKENS_COUNT 10
 #define MAX_COMMAND_LOG_COUNT 100
@@ -115,7 +116,7 @@ char **commandTokenize(char *command) {
     // tokenize command
     token = strtok(commandCopy, " \t\n=");
     while (token != NULL && i < MAX_COMMAND_TOKENS_COUNT - 1) {
-        tokens[i] = malloc(strlen(token) + 1);
+        tokens[i] = malloc((strlen(token) + 1) * sizeof(char));
         strcpy(tokens[i], token);
         i++;
         token = strtok(NULL, " \t\n=");
@@ -185,16 +186,22 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
 
     // theme
     else if (strcmp(tokens[0], "theme") == 0) {
-        if (strcmp(tokens[1], "red") == 0) {
-            printf("\033[0;31m");
-        } else if (strcmp(tokens[1], "green") == 0) {
-            printf("\033[0;32m");
-        } else if (strcmp(tokens[1], "blue") == 0) {
-            printf("\033[0;34m");
+        if (tokens[1]) {
+            if (strcmp(tokens[1], "red") == 0) {
+                printf("\033[0;31m");
+            } else if (strcmp(tokens[1], "green") == 0) {
+                printf("\033[0;32m");
+            } else if (strcmp(tokens[1], "blue") == 0) {
+                printf("\033[0;34m");
+            } else {
+                printf("unsupported theme\n");
+                returnVal = -1;
+            }
         } else {
             printf("unsupported theme\n");
             returnVal = -1;
         }
+        
         return returnVal;
     }
 
@@ -205,28 +212,27 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
         }
     }
 
+
     // fork
     else {
-        if (!access(tokens[0], X_OK)) {
-            printf("Missing keyword or command, or permission problem\n");
-            returnVal = -1;
-        }
-        
         pid_t child_pid = fork();
-
-        if (child_pid < 0) {
-            exit(1);
-        } else if (child_pid == 0) {
-            execvp(tokens[0], tokens);
-            exit(1);
-        } else {
-            int status = 0;
-            waitpid(child_pid, &status, 0);
+        
+        if (child_pid >= 0) {
+            if (child_pid == 0) {
+                if (execvp(tokens[0], tokens) == -1) {
+                    printf("Missing keyword or command, or permission problem");
+                    returnVal = -1;
+                    exit(0);
+                }
+            } else {
+                int status;
+                wait(&status);
+            }
         }
+
+        return returnVal;
     }
 
-    
-    
     return returnVal;
 }
 
@@ -248,18 +254,31 @@ int main(int argc, char *argv[]) {
             printf("Unable to read script file: %s\n", argv[1]);
             exit(1);
         }
+
+        // create an array to store the commands from file
+        char commandsFromFile[MAX_COMMAND_COUNT][MAX_COMMAND_LENGTH];
+        int commandCountFromFile = 0;
         while (fgets(command, MAX_COMMAND_LENGTH, script) != NULL) {
             command[strcspn(command, "\n")] = 0; // remove trailing newline
-
-            envVarCount = setEnvVar(command, envVars, envVarCount);
-
-            tokens = commandTokenize(command);
-            returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
-
-            commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
+            strcpy(commandsFromFile[commandCountFromFile], command);
+            commandCountFromFile++;
         }
 
-        
+        // run
+        for (int i = 0; i < commandCountFromFile; i++) {
+            envVarCount = setEnvVar(commandsFromFile[i], envVars, envVarCount);
+
+            tokens = commandTokenize(commandsFromFile[i]);
+
+            returnVal = commandExecute(tokens, commandsFromFile[i], envVars, envVarCount, commandLog, commandLogCount);
+
+            commandLogCount = setCommandLog(tokens, commandsFromFile[i], commandLog, commandLogCount, returnVal);
+
+            for (int i = 0; tokens[i] != NULL; i++) {
+                free(tokens[i]);
+            }
+            free(tokens);
+        }
 
         // free memory
         for (int i = 0; i < envVarCount; i++) {
@@ -269,14 +288,7 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < commandLogCount; i++) {
             free(commandLog[i].name);
         }
-        for (int i = 0; tokens[i] != NULL; i++) {
-            free(tokens[i]);
-        }
-        free(tokens);
         fclose(script);
-        
-
-    
 
         // exit cleanly after executing in script mode
         strcpy(command, "exit");
@@ -287,6 +299,7 @@ int main(int argc, char *argv[]) {
         returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
 
         commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
+        // return 0;
     }
 
     // interactive mode
@@ -303,6 +316,11 @@ int main(int argc, char *argv[]) {
             returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
 
             commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
+
+            for (int i = 0; tokens[i] != NULL; i++) {
+                free(tokens[i]);
+            }
+            free(tokens);
         }
     }
 
@@ -314,11 +332,10 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < commandLogCount; i++) {
         free(commandLog[i].name);
     }
-    for (int i = 0; tokens[i] != NULL; i++) {
-        free(tokens[i]);
-    }
-    free(tokens);
+    // for (int i = 0; tokens[i] != NULL; i++) {
+    //     free(tokens[i]);
+    // }
+    // free(tokens);
 
-    
     return 0;
 }
