@@ -145,6 +145,13 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
 
         printf("Bye!\n");
         
+        for (int i = 0; i < envVarCount; i++) {
+            free(envVars[i].name);
+            free(envVars[i].value);
+        }
+        for (int i = 0; i < commandLogCount; i++) {
+            free(commandLog[i].name);
+        }
         for (int i = 0; tokens[i] != NULL; i++) {
             free(tokens[i]);
         }
@@ -358,10 +365,6 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < commandLogCount; i++) {
         free(commandLog[i].name);
     }
-    // for (int i = 0; tokens[i] != NULL; i++) {
-    //     free(tokens[i]);
-    // }
-    // free(tokens);
 
     return 0;
 }
