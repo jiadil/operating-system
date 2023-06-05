@@ -6,6 +6,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <linux/kernel.h>
+#include <sys/syscall.h>
+
+#define __NR_uppercase 449
 
 #define MAX_ENV_VAR_COUNT 100
 #define MAX_COMMAND_COUNT 100
@@ -253,6 +257,21 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
             printf("Variable value expected\n");
             returnVal = -1;
         }
+    }
+    
+    // BONUS: uppercase
+    else if (strcmp(tokens[0], "uppercase") == 0) {
+        if (tokens[1] == NULL) { // show error message if no arguments are given
+            printf("Please enter a valid argument!");
+            returnVal = -1;
+        } else { // convert the argument to uppercase
+            for (int i = 1; tokens[i] != NULL; i++) {
+                syscall(__NR_uppercase, tokens[i]);
+                printf("%s ", tokens[i]);
+            }
+        }
+        printf("\n");
+        return returnVal;
     }
 
     // non-built-in command
