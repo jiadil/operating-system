@@ -55,13 +55,20 @@ char **commandTokenize(char *command) {
 }
 
 // function to check if a command is a valid environment variable
-int isValidEnvVar(char *command) {
+int isValidEnvVarCheck(char *command) {
     int commandLength = strlen(command);
     int isEnvVarDelim = 0;
 
     // check if a command starts with '$' and has at least 2 characters
-    if ((command[0] != '$') || (commandLength < 2)) {
-        return 0;
+    if ((command[0] != '$') || (command[1] == '=')) {
+        return -1;
+    }
+
+    // print error msg when $var =...
+    for (int i = 1; command[i] != '='; i++) {
+        if (command[i] == ' ') {
+            return -2;
+        }
     }
 
     // check if a command has only one '=' and no space (or spaces at the end)
@@ -84,6 +91,13 @@ int isValidEnvVar(char *command) {
         }
     }
 
+    // // check if a EnvName has only letters, numbers, and underscores
+    // for (int i = 1; command[i] != '='; i++) {
+    //     if (!isalpha(command[i]) && (command[i] != '_')) {
+    //         return 0;
+    //     }
+    // }
+
     return 1;
 }
 
@@ -91,7 +105,7 @@ int isValidEnvVar(char *command) {
 int setEnvVar(char *command, EnvVar *envVars, int envVarCount) {
     
     // check if command is a valid environment variable
-    if (!isValidEnvVar(command)) {
+    if (isValidEnvVarCheck(command) != 1) {
         return envVarCount;
     }
 
@@ -253,10 +267,16 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
         
         return returnVal;
     } else if (tokens[0][0] == '$') { // environment variable
-        if (!isValidEnvVar(command)) {
-            printf("Variable value expected\n");
+        int isValid = isValidEnvVarCheck(command);
+        if (isValid != 1) {
             returnVal = -1;
+            if (isValid == -1) {
+                printf("Variable name expected\n");  
+            } else if (isValid == -2) {
+                printf("Variable value expected\n");  
+            }
         }
+
     }
     
     // BONUS: uppercase
