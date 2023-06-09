@@ -55,6 +55,10 @@ char **commandTokenize(char *command) {
 }
 
 // function to check if a command is a valid environment variable
+// -1 => Variable name expected
+// -2 => Variable value expected
+// 0 => Invalid assignment, print nothing
+// 1 => Valid assignment, print nothing
 int isValidEnvVarCheck(char *command) {
     int commandLength = strlen(command);
     int isEnvVarDelim = 0;
@@ -68,6 +72,9 @@ int isValidEnvVarCheck(char *command) {
     for (int i = 1; command[i] != '='; i++) {
         if (command[i] == ' ') {
             return -2;
+        }
+        if (command[i] == '/') {
+            return -1;
         }
     }
 
@@ -145,7 +152,7 @@ int setCommandLog(char **tokens, char *command, Command *commandLog, int command
     time(&rawtime);
 
     // store full command if the command fails or is an environment variable
-    if ((returnVal == -1) || (tokens[0][0] == '$')) {
+    if (tokens[0][0] == '$') {
         commandName = command;
     } else {
         commandName = tokens[0];
@@ -296,6 +303,20 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
 
     // non-built-in command
     else {
+        // replace environment variables with their values
+        for (int i = 1; tokens[i] != NULL; i++) {
+            if (tokens[i][0] == '$') { // if the argument is an environment variable
+                // if the environment variable exists, add to printCommand with space
+                for (int j = 0; j < envVarCount; j++) {
+                    if (strcmp(tokens[i], envVars[j].name) == 0) {
+                        // add to printCommand with space
+                        tokens[i] = realloc(tokens[i], strlen(envVars[j].value) + 1);
+                        strcpy(tokens[i], envVars[j].value);
+                    }
+                }
+            }
+        }
+
         pid_t child_pid = fork();
         
         if (child_pid >= 0) {
@@ -311,7 +332,7 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
                 // return value is -1 for error commands
                 if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
                     returnVal = -1;
-                }
+                } 
             }
         }
 
