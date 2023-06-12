@@ -264,6 +264,13 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
 
         return returnVal;
     } else if (strcmp(tokens[0], "theme") == 0) { // theme
+        // if has more than two tokens, show error message
+        if (tokens[2] != NULL) {
+            printf("Error: Too many Arguments detected\n");
+            returnVal = -1;
+            return returnVal;
+        }
+        
         if (tokens[1]) {
             if (strcmp(tokens[1], "red") == 0) {
                 printf("\033[0;31m");
