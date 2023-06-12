@@ -151,6 +151,10 @@ int setCommandLog(char **tokens, char *command, Command *commandLog, int command
     time_t rawtime;
     time(&rawtime);
 
+    if (tokens[0] == NULL) {
+        return commandLogCount;
+    }
+    
     // store full command if the command fails or is an environment variable
     if (tokens[0][0] == '$') {
         commandName = command;
@@ -172,6 +176,10 @@ int setCommandLog(char **tokens, char *command, Command *commandLog, int command
 int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
     int returnVal = 0;
 
+    if (tokens[0] == NULL) {
+        return returnVal;
+    }
+    
     // built-in command
     if (strcmp(tokens[0], "exit") == 0) { // exit
         // show error message if too many arguments are given
