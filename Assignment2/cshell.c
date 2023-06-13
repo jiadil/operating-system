@@ -173,7 +173,7 @@ int setCommandLog(char **tokens, char *command, Command *commandLog, int command
 }
 
 // function to execute commands
-int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount) {
+int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCount, Command *commandLog, int commandLogCount, int *currentThemeColor) {
     int returnVal = 0;
 
     if (tokens[0] == NULL) {
@@ -273,10 +273,13 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
         
         if (tokens[1]) {
             if (strcmp(tokens[1], "red") == 0) {
+                *currentThemeColor = 1;
                 printf("\033[0;31m");
             } else if (strcmp(tokens[1], "green") == 0) {
+                *currentThemeColor = 2;
                 printf("\033[0;32m");
             } else if (strcmp(tokens[1], "blue") == 0) {
+                *currentThemeColor = 3;
                 printf("\033[0;34m");
             } else {
                 printf("unsupported theme\n");
@@ -333,7 +336,7 @@ int commandExecute(char **tokens, char *command, EnvVar *envVars, int envVarCoun
         }
 
         pid_t child_pid = fork();
-        
+
         if (child_pid >= 0) {
             if (child_pid == 0) {
                 // return error message if execvp fails (error commands))
@@ -368,6 +371,9 @@ int main(int argc, char *argv[]) {
     int commandLogCount = 0;
     int returnVal;
 
+    int currentThemeColorCode = 0;
+    int *currentThemeColor = &currentThemeColorCode;
+
     // script mode
     if (argv[1]) {
         FILE *script = fopen(argv[1], "r");
@@ -391,7 +397,7 @@ int main(int argc, char *argv[]) {
 
             tokens = commandTokenize(commandsFromFile[i]);
 
-            returnVal = commandExecute(tokens, commandsFromFile[i], envVars, envVarCount, commandLog, commandLogCount);
+            returnVal = commandExecute(tokens, commandsFromFile[i], envVars, envVarCount, commandLog, commandLogCount, currentThemeColor);
 
             commandLogCount = setCommandLog(tokens, commandsFromFile[i], commandLog, commandLogCount, returnVal);
 
@@ -409,7 +415,7 @@ int main(int argc, char *argv[]) {
         envVarCount = setEnvVar(command, envVars, envVarCount);
 
         tokens = commandTokenize(command);
-        returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
+        returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount, currentThemeColor);
 
         commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
     }
@@ -418,14 +424,26 @@ int main(int argc, char *argv[]) {
     else {
         while(1) {
             printf("cshell$ ");
-            
+
+            printf("\033[0m");
+
             fgets(command, MAX_COMMAND_LENGTH, stdin);
             command[strcspn(command, "\n")] = 0; // remove trailing newline
+
+            if (*currentThemeColor == 1) {
+                printf("\033[0;31m");
+            } else if (*currentThemeColor == 2) {
+                printf("\033[0;32m");
+            } else if (*currentThemeColor == 3) {
+                printf("\033[0;34m");
+            }
+
+            fflush(stdout);
 
             envVarCount = setEnvVar(command, envVars, envVarCount);
 
             tokens = commandTokenize(command);
-            returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount);
+            returnVal = commandExecute(tokens, command, envVars, envVarCount, commandLog, commandLogCount, currentThemeColor);
 
             commandLogCount = setCommandLog(tokens, command, commandLog, commandLogCount, returnVal);
 
