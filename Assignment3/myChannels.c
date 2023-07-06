@@ -9,7 +9,7 @@
 
 pthread_mutex_t global_checkpointing;
 
-char* metadata_file_path = "inputs/metadata1.txt";
+char* metadata_file_path = "inputs/metadata.txt";
 char* output_file_path = "output.txt";
 int buffer_size;
 int num_threads;
