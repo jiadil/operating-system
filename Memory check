@@ -1,2 +1,2 @@
-valgrind --leak-check=full ./my_storage_use
-valgrind --leak-check=full --show-leak-kinds=al^C./cshell
+valgrind --leak-check=full ./
+valgrind --leak-check=full --show-leak-kinds=all ./
