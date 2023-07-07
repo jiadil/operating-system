@@ -14,7 +14,6 @@ char* output_file_path = "output.txt";
 int buffer_size;
 int num_threads;
 int lock_config;
-// int global_checkpointing;
 
 int global_lock = 0;
 int entry_lock = 0;
@@ -187,7 +186,9 @@ void* thread_function (void* thread_num) {
     pthread_mutex_lock(&global_checkpointing);
 
     int first_thread_file = (intptr_t) thread_num * files_per_thread;
-    char buffer[buffer_size]; // buffer for each time byte reading
+
+    char buffer[buffer_size + 1]; // buffer for each time byte reading
+    buffer[buffer_size] = '\0'; // set the last byte to null, prevent memory error
     float buffer_float_list[files_per_thread][MAX_LINE_LENGTH]; // converted buffer (float) list
     int buffer_float_list_length = 0;
     int thread_file_buffer_length[files_per_thread]; // each thread file buffer length
@@ -288,15 +289,6 @@ void* thread_function (void* thread_num) {
     pthread_exit(NULL);
 }
 
-void skip_bom(FILE *fp) {
-    // char buffer[4];
-    // fread(buffer, 1, 3, fp);
-    // buffer[3] = '\0';
-    // if (strcmp(buffer, "\xEF\xBB\xBF") != 0) {
-    //     rewind(fp);
-    // }
-}
-
 int main(int argc, char **argv) {
     // get user input
     printf("Enter buffer size: ");
@@ -318,9 +310,6 @@ int main(int argc, char **argv) {
         printf("Error opening metadata file!\n");
         exit(1);
     }
-    
-    // skip BOM if exists
-    // skip_bom(metadataFile);
 
     // read metadata file
     fscanf(metadataFile, "%d/r/n", &num_input_files);
