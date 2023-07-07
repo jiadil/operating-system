@@ -1,7 +1,7 @@
-﻿2
-/input_files/file_3.txt
+2
+input_files/file_3.txt
 0.5
 1
-/input_files/file_4.txt
+input_files/file_4.txt
 0.5
 0.5
