@@ -79,6 +79,7 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
     int output_value_to_read;
     int output_value_to_write;
 
+    // global lock
     if (lock_config == 1) {
         // waiting global lock
         while (global_lock == 1);
