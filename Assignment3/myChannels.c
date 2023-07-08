@@ -25,6 +25,19 @@ int files_per_thread;
 float* alpha_list;
 float* beta_list;
 
+// get number digit of an integer
+int get_num_digit(int num) {
+    int count = 0;
+    if (num == 0) {
+        return 1;
+    }
+    while (num != 0) {
+        num = num / 10;
+        count++;
+    }
+    return count;
+}
+
 // remove newline from string
 char* remove_newline(char* str) {
     int i = 0;
@@ -63,8 +76,6 @@ int max(int arr[], int n) {
 // write to output file
 void write_to_output_file(int buffer_float_list_length, float beta_cal_result[files_per_thread][MAX_LINE_LENGTH]) {
     char output_buffer[MAX_LINE_LENGTH] = "";
-    char *output_buffer_char = output_buffer;
-    size_t output_buffer_size = MAX_LINE_LENGTH;
     int output_value_to_read;
     int output_value_to_write;
 
@@ -79,25 +90,61 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
 
             for (int j = 0; j < buffer_float_list_length; j++) {
                 // get line from current output file
-                if (getline(&output_buffer_char, &output_buffer_size, output_file) != EOF) {
+                if (fgets(output_buffer, MAX_LINE_LENGTH, output_file) != NULL) {
                     fseek(output_file, -strlen(output_buffer), SEEK_CUR);
-                }
 
-                if (output_buffer[0] == '\0') {
-                    output_value_to_read = 0;
-                } else {
                     output_value_to_read = strtof(output_buffer, NULL);
-                }
+                    output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
+                    if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
+                        output_value_to_write = output_value_to_write + 1;
+                    }
 
-                // store the value to write
-                // output_value_to_read = strtof(output_buffer, NULL);
-                output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
-                if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
-                    output_value_to_write = output_value_to_write + 1;
-                }
+                    // if the value to write is larger than the value to read, move the file pointer to the next line
+                    if (get_num_digit(output_value_to_write) > get_num_digit(output_value_to_read)) {
+                        long current_position = ftell(output_file);
+                        fseek(output_file, strlen(output_buffer), SEEK_CUR);
+                        long next_position = ftell(output_file);
 
-                // write to output file
-                fprintf(output_file, "%d\n", output_value_to_write);
+                        fseek(output_file, 0, SEEK_END);
+                        long old_file_size = ftell(output_file);
+
+                        fseek(output_file, next_position, SEEK_SET);
+                        if (old_file_size - next_position != 0) {
+                            char old_file_buffer[old_file_size - next_position + 1];
+                            old_file_buffer[old_file_size - next_position] = '\0';
+                            fread(old_file_buffer, old_file_size - next_position, 1, output_file);
+
+                            fseek(output_file, current_position, SEEK_SET);
+
+                            fprintf(output_file, "%d\n", output_value_to_write);
+
+                            long finish_position = ftell(output_file);
+
+                            fprintf(output_file, "%s", old_file_buffer);
+
+                            fseek(output_file, finish_position, SEEK_SET);
+                        } else {
+                            fseek(output_file, current_position, SEEK_SET);
+                            fprintf(output_file, "%d\n", output_value_to_write);
+                        }
+                    } else {
+                        fprintf(output_file, "%d\n", output_value_to_write);
+                    }
+                } else {
+                    if (output_buffer[0] != '\0') {
+                        output_value_to_read = strtof(output_buffer, NULL);
+                    } else {
+                        output_value_to_read = 0;
+                    }
+
+                    output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
+                    if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
+                        output_value_to_write = output_value_to_write + 1;
+                    }
+
+                    // write to output file
+                    fprintf(output_file, "%d\n", output_value_to_write);
+                }
 
                 // flush the buffer
                 for (int m = 0; m < MAX_LINE_LENGTH; m++) {
@@ -121,19 +168,61 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                 entry_lock = 1;
 
                 // get line from current output file
-                if (getline(&output_buffer_char, &output_buffer_size, output_file) != EOF) {
+                if (fgets(output_buffer, MAX_LINE_LENGTH, output_file) != NULL) {
                     fseek(output_file, -strlen(output_buffer), SEEK_CUR);
-                }
 
-                // store the value to write
-                output_value_to_read = strtof(output_buffer, NULL);
-                output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
-                if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
-                    output_value_to_write = output_value_to_write + 1;
-                }
+                    output_value_to_read = strtof(output_buffer, NULL);
+                    output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
+                    if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
+                        output_value_to_write = output_value_to_write + 1;
+                    }
 
-                // write to output file
-                fprintf(output_file, "%d\n", output_value_to_write);
+                    // if the value to write is larger than the value to read, move the file pointer to the next line
+                    if (get_num_digit(output_value_to_write) > get_num_digit(output_value_to_read)) {
+                        long current_position = ftell(output_file);
+                        fseek(output_file, strlen(output_buffer), SEEK_CUR);
+                        long next_position = ftell(output_file);
+
+                        fseek(output_file, 0, SEEK_END);
+                        long old_file_size = ftell(output_file);
+
+                        fseek(output_file, next_position, SEEK_SET);
+                        if (old_file_size - next_position != 0) {
+                            char old_file_buffer[old_file_size - next_position + 1];
+                            old_file_buffer[old_file_size - next_position] = '\0';
+                            fread(old_file_buffer, old_file_size - next_position, 1, output_file);
+
+                            fseek(output_file, current_position, SEEK_SET);
+
+                            fprintf(output_file, "%d\n", output_value_to_write);
+
+                            long finish_position = ftell(output_file);
+
+                            fprintf(output_file, "%s", old_file_buffer);
+
+                            fseek(output_file, finish_position, SEEK_SET);
+                        } else {
+                            fseek(output_file, current_position, SEEK_SET);
+                            fprintf(output_file, "%d\n", output_value_to_write);
+                        }
+                    } else {
+                        fprintf(output_file, "%d\n", output_value_to_write);
+                    }
+                } else {
+                    if (output_buffer[0] != '\0') {
+                        output_value_to_read = strtof(output_buffer, NULL);
+                    } else {
+                        output_value_to_read = 0;
+                    }
+
+                    output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
+                    if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
+                        output_value_to_write = output_value_to_write + 1;
+                    }
+
+                    // write to output file
+                    fprintf(output_file, "%d\n", output_value_to_write);
+                }
 
                 // flush the buffer
                 for (int m = 0; m < MAX_LINE_LENGTH; m++) {
@@ -156,19 +245,61 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                 while (compare_and_swap(&global_lock, 0, 1) != 0);
 
                 // get line from current output file
-                if (getline(&output_buffer_char, &output_buffer_size, output_file) != EOF) {
+                if (fgets(output_buffer, MAX_LINE_LENGTH, output_file) != NULL) {
                     fseek(output_file, -strlen(output_buffer), SEEK_CUR);
-                }
 
-                // store the value to write
-                output_value_to_read = strtof(output_buffer, NULL);
-                output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
-                if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
-                    output_value_to_write = output_value_to_write + 1;
-                }
+                    output_value_to_read = strtof(output_buffer, NULL);
+                    output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
+                    if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
+                        output_value_to_write = output_value_to_write + 1;
+                    }
 
-                // write to output file
-                fprintf(output_file, "%d\n", output_value_to_write);
+                    // if the value to write is larger than the value to read, move the file pointer to the next line
+                    if (get_num_digit(output_value_to_write) > get_num_digit(output_value_to_read)) {
+                        long current_position = ftell(output_file);
+                        fseek(output_file, strlen(output_buffer), SEEK_CUR);
+                        long next_position = ftell(output_file);
+
+                        fseek(output_file, 0, SEEK_END);
+                        long old_file_size = ftell(output_file);
+
+                        fseek(output_file, next_position, SEEK_SET);
+                        if (old_file_size - next_position != 0) {
+                            char old_file_buffer[old_file_size - next_position + 1];
+                            old_file_buffer[old_file_size - next_position] = '\0';
+                            fread(old_file_buffer, old_file_size - next_position, 1, output_file);
+
+                            fseek(output_file, current_position, SEEK_SET);
+
+                            fprintf(output_file, "%d\n", output_value_to_write);
+
+                            long finish_position = ftell(output_file);
+
+                            fprintf(output_file, "%s", old_file_buffer);
+
+                            fseek(output_file, finish_position, SEEK_SET);
+                        } else {
+                            fseek(output_file, current_position, SEEK_SET);
+                            fprintf(output_file, "%d\n", output_value_to_write);
+                        }
+                    } else {
+                        fprintf(output_file, "%d\n", output_value_to_write);
+                    }
+                } else {
+                    if (output_buffer[0] != '\0') {
+                        output_value_to_read = strtof(output_buffer, NULL);
+                    } else {
+                        output_value_to_read = 0;
+                    }
+
+                    output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
+                    if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
+                        output_value_to_write = output_value_to_write + 1;
+                    }
+
+                    // write to output file
+                    fprintf(output_file, "%d\n", output_value_to_write);
+                }
 
                 // flush the buffer
                 for (int m = 0; m < MAX_LINE_LENGTH; m++) {
@@ -189,16 +320,24 @@ void* thread_function (void* thread_num) {
 
     char buffer[buffer_size + 1]; // buffer for each time byte reading
     buffer[buffer_size] = '\0'; // set the last byte to null, prevent memory error
+    
     float buffer_float_list[files_per_thread][MAX_LINE_LENGTH]; // converted buffer (float) list
     int buffer_float_list_length = 0;
+    
     int thread_file_buffer_length[files_per_thread]; // each thread file buffer length
+    for (int i = 0; i < files_per_thread; i++) { // initialize to 0, prevent memory error
+        thread_file_buffer_length[i] = 0;
+    }
 
     float alpha_cal_result[files_per_thread][MAX_LINE_LENGTH];
     float beta_cal_result[files_per_thread][MAX_LINE_LENGTH];
 
     int continue_to_read = 1;
-    int complete_reading_thread_file[files_per_thread];
     int complete_reading_all = 0;
+    int complete_reading_thread_file[files_per_thread];
+    for (int i = 0; i < files_per_thread; i++) { // initialize to 0, prevent memory error
+        complete_reading_thread_file[i] = 0;
+    }
 
     int local_checkpointing = 0; // local lock
 
