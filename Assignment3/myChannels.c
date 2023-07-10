@@ -438,6 +438,10 @@ int main(int argc, char **argv) {
     printf("Enter lock config (1: global lock, 2: entry lock, 3: compare and swap): ");
     scanf("%d", &lock_config);
 
+    if (buffer_size <= 0) {
+        printf("Invalid buffer size!\n");
+        exit(1);
+    }
     if (lock_config != 1 && lock_config != 2 && lock_config != 3) {
         printf("Invalid lock config!\n");
         exit(1);
