@@ -11,9 +11,9 @@ pthread_mutex_t global_checkpointing;
 
 char* metadata_file_path = "inputs/metadata.txt";
 char* output_file_path = "output.txt";
-int buffer_size;
-int num_threads;
-int lock_config;
+int buffer_size = 2; // default buffer size
+int num_threads = 1; // default number of threads
+int lock_config = 1; // default lock config
 
 int global_lock = 0;
 int entry_lock = 0;
@@ -100,6 +100,10 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                         output_value_to_write = output_value_to_write + 1;
                     }
 
+                    if (output_value_to_write > 65535 || output_value_to_write < -65535) { // check overflow
+                        output_value_to_write = 65535; 
+                    }
+
                     // if the value to write is larger than the value to read, move the file pointer to the next line
                     if (get_num_digit(output_value_to_write) > get_num_digit(output_value_to_read)) {
                         long current_position = ftell(output_file);
@@ -141,6 +145,10 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                     output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
                     if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
                         output_value_to_write = output_value_to_write + 1;
+                    }
+
+                    if (output_value_to_write > 65535 || output_value_to_write < -65535) { // check overflow
+                        output_value_to_write = 65535; 
                     }
 
                     // write to output file
@@ -178,6 +186,10 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                         output_value_to_write = output_value_to_write + 1;
                     }
 
+                    if (output_value_to_write > 65535 || output_value_to_write < -65535) { // check overflow
+                        output_value_to_write = 65535; 
+                    }
+
                     // if the value to write is larger than the value to read, move the file pointer to the next line
                     if (get_num_digit(output_value_to_write) > get_num_digit(output_value_to_read)) {
                         long current_position = ftell(output_file);
@@ -219,6 +231,10 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                     output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
                     if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
                         output_value_to_write = output_value_to_write + 1;
+                    }
+
+                    if (output_value_to_write > 65535 || output_value_to_write < -65535) { // check overflow
+                        output_value_to_write = 65535; 
                     }
 
                     // write to output file
@@ -255,6 +271,10 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                         output_value_to_write = output_value_to_write + 1;
                     }
 
+                    if (output_value_to_write > 65535 || output_value_to_write < -65535) { // check overflow
+                        output_value_to_write = 65535; 
+                    }
+
                     // if the value to write is larger than the value to read, move the file pointer to the next line
                     if (get_num_digit(output_value_to_write) > get_num_digit(output_value_to_read)) {
                         long current_position = ftell(output_file);
@@ -296,6 +316,10 @@ void write_to_output_file(int buffer_float_list_length, float beta_cal_result[fi
                     output_value_to_write = output_value_to_read + beta_cal_result[i][j]; // convert to float
                     if (output_value_to_write < output_value_to_read + beta_cal_result[i][j]) { // check overflow
                         output_value_to_write = output_value_to_write + 1;
+                    }
+
+                    if (output_value_to_write > 65535 || output_value_to_write < -65535) { // check overflow
+                        output_value_to_write = 65535; 
                     }
 
                     // write to output file
@@ -371,9 +395,8 @@ void* thread_function (void* thread_num) {
             // store the buffer to the buffer (float) list
             if (complete_reading_thread_file[i] != 1) {
                 remove_newline(buffer);
-                buffer_float_list[i][buffer_float_list_length] = strtof(buffer, NULL);
                 thread_file_buffer_length[i]++;
-                
+                buffer_float_list[i][buffer_float_list_length] = strtof(buffer, NULL);
             }
 
             // flush buffer
@@ -468,13 +491,30 @@ int main(int argc, char **argv) {
     beta_list = malloc(sizeof(float) * num_input_files);
     input_files = malloc(sizeof(FILE*) * num_input_files);
 
+    float alpha_temp = 0;
+    float beta_temp = 0;
     // store input file path, alpha and beta values
     files_per_thread = num_input_files/num_threads; // number of files per thread
     for (int i = 0; i < num_input_files; i++) {
         fscanf(metadataFile, "%s/r/n", input_file_path[i]); // store input file path
         input_files[i] = fopen(input_file_path[i], "r"); // open input file
-        fscanf(metadataFile, "%f/r/n", &alpha_list[i]); // store alpha value
-        fscanf(metadataFile, "%f/r/n", &beta_list[i]); // store beta value
+
+        fscanf(metadataFile, "%f/r/n", &alpha_temp); // store alpha value
+        fscanf(metadataFile, "%f/r/n", &beta_temp); // store beta value
+
+        if (alpha_temp < 0 || alpha_temp > 1) {
+            printf("Invalid alpha value, use default alpha value 1.0 instead.\n");
+            alpha_list[i] = 1.0;
+        } else {
+            alpha_list[i] = alpha_temp;
+        }
+
+        if (beta_temp <= 0) {
+            printf("Invalid beta value, use default beta value 1.0 instead.\n");
+            beta_list[i] = 1.0;
+        } else {
+            beta_list[i] = beta_temp;
+        }
     }
 
     output_file = fopen(output_file_path, "w+");
