@@ -344,6 +344,9 @@ void* thread_function (void* thread_num) {
     int first_thread_file = (intptr_t) thread_num * files_per_thread;
 
     char buffer[buffer_size + 1]; // buffer for each time byte reading
+    for (int i = 0; i < buffer_size; i++) { // initialize to 0, prevent memory error
+        buffer[i] = '\0';
+    }
     buffer[buffer_size] = '\0'; // set the last byte to null, prevent memory error
     
     float buffer_float_list[files_per_thread][MAX_LINE_LENGTH]; // converted buffer (float) list
