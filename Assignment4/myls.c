@@ -1,18 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <time.h>
-#include <sys/stat.h>
-#include <pwd.h>
-#include <grp.h>
 #include <dirent.h>
-#include <getopt.h>
-#include <assert.h>
-
-
+#include <sys/stat.h> // lstat
+#include <sys/types.h> // lstat
+#include <unistd.h> // readlink
+#include <grp.h> // getgrgid
+#include <pwd.h> // getpwuid
+#include <time.h> // strftime
+#include <dirent.h> // readdir
+#include <getopt.h> // getopt
 
 int option_i = 0;
 int option_l = 0;
@@ -20,7 +17,6 @@ int option_R = 0;
 int option_count = 0; // 1 for ./myls
 
 #define PATH_MAX_LENGTH 1024
-
 
 void print_option_i (struct stat *file_buffer) {
     printf("%ld ", file_buffer->st_ino);
@@ -63,7 +59,6 @@ int compareEntries(const void *a, const void *b) {
     struct dirent *entry_b = *(struct dirent **)b;
     return strcmp(entry_a->d_name, entry_b->d_name);
 }
-
 
 void list_dir (const char *path, int is_only_option, int is_first_arg) {
     DIR *dir;
@@ -161,7 +156,6 @@ void list_dir (const char *path, int is_only_option, int is_first_arg) {
     closedir(dir);
     free(entries);
 }
-
 
 int main(int argc, char **argv) {
     if (strcmp(argv[0], "./myls") != 0) {
