@@ -18,11 +18,11 @@ int option_count = 0; // 1 for ./myls
 
 #define PATH_MAX_LENGTH 1024
 
-void print_option_i (struct stat *file_buffer) {
+void print_option_i(struct stat *file_buffer) {
     printf("%ld ", file_buffer->st_ino);
 }
 
-void print_option_l (struct stat *file_buffer) {
+void print_option_l(struct stat *file_buffer) {
     struct group *grp = getgrgid(file_buffer->st_gid);
     struct passwd *pw = getpwuid(file_buffer->st_uid);
 
@@ -60,7 +60,7 @@ int compareEntries(const void *a, const void *b) {
     return strcmp(entry_a->d_name, entry_b->d_name);
 }
 
-void list_dir (const char *path, int is_only_option, int is_first_arg) {
+void list_dir(const char *path, int is_only_option, int is_first_dir_arg) {
     DIR *dir;
     struct dirent *entry;
     struct stat file_buffer;
@@ -73,7 +73,7 @@ void list_dir (const char *path, int is_only_option, int is_first_arg) {
         exit(-1);
     }
 
-    if (!is_first_arg) {
+    if (!is_first_dir_arg) {
         printf("\n");
     }
 
@@ -146,10 +146,7 @@ void list_dir (const char *path, int is_only_option, int is_first_arg) {
     // if the option R: list subdirectories recursively
     if (option_R == 1) {
         for (int i = 0; i < full_path_R_count; i++) {
-            if (is_only_option) {
-                printf("\n");
-            }
-            list_dir(full_path_R[i], is_only_option, is_first_arg);
+            list_dir(full_path_R[i], is_only_option, 0);
         }
     }
 
@@ -190,14 +187,15 @@ int main(int argc, char **argv) {
     struct stat file_buffer;
     char file_path[PATH_MAX_LENGTH];
 
-    int is_first_arg = 0;
+    int is_first_dir_arg = 0;
+    int is_first_dir_arg_count = 0;
     int is_only_option = 0;
    
     // Only options
     if (argc == option_count) {
         is_only_option = 1;
-        is_first_arg = 1;
-        list_dir(".", is_only_option, is_first_arg);
+        is_first_dir_arg = 1;
+        list_dir(".", is_only_option, is_first_dir_arg);
     }
 
     // Also has filelist
@@ -207,7 +205,7 @@ int main(int argc, char **argv) {
             strcpy(file_path, argv[i]);
 
             if(lstat(file_path, &file_buffer) !=0) {
-                printf("Error: Nonexistent files or directories\n");
+                printf("\nError: Nonexistent files or directories\n");
                 exit(-1); 
             }
 
@@ -225,23 +223,37 @@ int main(int argc, char **argv) {
                     char link_path[PATH_MAX_LENGTH];
                     int link_path_length = readlink(file_path, link_path, sizeof link_path);
                     link_path[link_path_length] = '\0';
+                    
+                    // remove './' in the beginning of the path
+                    if (file_path[0] == '.' && file_path[1] == '/') {
+                        memmove(file_path, file_path + 2, strlen(file_path) - 1);
+                    }
                     printf("%s -> %s\n", file_path, link_path);       
                 }
 
                 else {
+                    // remove './' in the beginning of the path
+                    if (file_path[0] == '.' && file_path[1] == '/') {
+                        memmove(file_path, file_path + 2, strlen(file_path) - 1);
+                    }
                     printf("%s\n", file_path);
                 }
             }
 
             // if the entry is a directory
             if (S_ISDIR(file_buffer.st_mode)) {
-                if (i == option_count) { // if it is the last argument
-                    is_first_arg = 1;
+                if (is_first_dir_arg_count == 0) { // if it is the first file argument
+                    is_first_dir_arg = 1;
+                } else {
+                    is_first_dir_arg = 0;
                 }
+                is_first_dir_arg_count++;
+
                 if (file_path[0] == '.' && file_path[1] == '\0') {
                     is_only_option = 1;
                 }
-                list_dir(file_path, is_only_option, is_first_arg);
+
+                list_dir(file_path, is_only_option, is_first_dir_arg);
             }
         }
     }
