@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
             strcpy(file_path, argv[i]);
 
             if(lstat(file_path, &file_buffer) !=0) {
-                printf("\nError: Nonexistent files or directories\n");
+                printf("Error: Nonexistent files or directories\n");
                 exit(-1); 
             }
 
