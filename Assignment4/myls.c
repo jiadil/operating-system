@@ -57,7 +57,22 @@ void print_option_l(struct stat *file_buffer) {
 int compareEntries(const void *a, const void *b) {
     struct dirent *entry_a = *(struct dirent **)a;
     struct dirent *entry_b = *(struct dirent **)b;
-    return strcmp(entry_a->d_name, entry_b->d_name);
+    // to lower and compare
+    char name_a[PATH_MAX_LENGTH];
+    char name_b[PATH_MAX_LENGTH];
+    strcpy(name_a, entry_a->d_name);
+    strcpy(name_b, entry_b->d_name);
+    for (int i = 0; name_a[i] != '\0'; i++) {
+        if (name_a[i] >= 'A' && name_a[i] <= 'Z') {
+            name_a[i] = name_a[i] + 32;
+        }
+    }
+    for (int i = 0; name_b[i] != '\0'; i++) {
+        if (name_b[i] >= 'A' && name_b[i] <= 'Z') {
+            name_b[i] = name_b[i] + 32;
+        }
+    }
+    return strcmp(name_a, name_b);
 }
 
 void list_dir(const char *path, int is_only_option, int is_first_dir_arg) {
